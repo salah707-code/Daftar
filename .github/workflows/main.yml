@@ -16,6 +16,10 @@ jobs:
     name: Build & Test Android App (Daftar)
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      actions: read
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -26,16 +30,19 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '9.3.1'
-          cache-read-only: false
 
-      - name: Prepare Keystore and Environment
+      - name: Prepare Keystore & Environment Files
         run: |
-          echo "Setting up keystore and environment files..."
-          # Create .env from template if missing
+          echo "Preparing build configuration files..."
+          
+          # Setup .env file
           if [ ! -f ".env" ]; then
             if [ -f ".env.example" ]; then
               cp .env.example .env
@@ -44,33 +51,24 @@ jobs:
             fi
           fi
           
-          # Setup debug keystore from base64 if present, otherwise generate a valid debug keystore
+          # Setup debug keystore
           if [ -f "debug.keystore.base64" ]; then
             base64 -d debug.keystore.base64 > debug.keystore
-          elif [ ! -f "debug.keystore" ]; then
+          fi
+          if [ ! -f "debug.keystore" ]; then
             keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keypass android -storepass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
           
-          # Ensure gradlew has executable permissions
-          if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew
-          fi
+          # Accept Android licenses
+          yes | sdkmanager --licenses || true
 
       - name: Run Unit & Robolectric Tests
         run: |
-          if [ -f "./gradlew" ]; then
-            ./gradlew testDebugUnitTest --no-daemon --stacktrace
-          else
-            gradle testDebugUnitTest --no-daemon --stacktrace
-          fi
+          gradle testDebugUnitTest --no-daemon --stacktrace
 
       - name: Build Debug APK
         run: |
-          if [ -f "./gradlew" ]; then
-            ./gradlew assembleDebug --no-daemon --stacktrace
-          else
-            gradle assembleDebug --no-daemon --stacktrace
-          fi
+          gradle assembleDebug --no-daemon --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
