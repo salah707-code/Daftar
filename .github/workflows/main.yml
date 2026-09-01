@@ -7,6 +7,10 @@ on:
     branches: [ "main", "master" ]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build & Test Android App (Daftar)
@@ -21,9 +25,13 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v3
 
       - name: Grant Execute Permission for Gradle Wrapper
         run: |
@@ -62,3 +70,4 @@ jobs:
           name: unit-test-results
           path: app/build/reports/tests/testDebugUnitTest/
           retention-days: 7
+
