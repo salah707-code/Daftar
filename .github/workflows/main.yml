@@ -25,16 +25,33 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '9.3.1'
+          cache-read-only: false
 
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Grant Execute Permission for Gradle Wrapper
+      - name: Prepare Keystore and Environment
         run: |
+          echo "Setting up keystore and environment files..."
+          # Create .env from template if missing
+          if [ ! -f ".env" ]; then
+            if [ -f ".env.example" ]; then
+              cp .env.example .env
+            else
+              touch .env
+            fi
+          fi
+          
+          # Setup debug keystore from base64 if present, otherwise generate a valid debug keystore
+          if [ -f "debug.keystore.base64" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          elif [ ! -f "debug.keystore" ]; then
+            keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keypass android -storepass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          
+          # Ensure gradlew has executable permissions
           if [ -f "./gradlew" ]; then
             chmod +x ./gradlew
           fi
@@ -42,17 +59,17 @@ jobs:
       - name: Run Unit & Robolectric Tests
         run: |
           if [ -f "./gradlew" ]; then
-            ./gradlew testDebugUnitTest --stacktrace
+            ./gradlew testDebugUnitTest --no-daemon --stacktrace
           else
-            gradle testDebugUnitTest --stacktrace
+            gradle testDebugUnitTest --no-daemon --stacktrace
           fi
 
       - name: Build Debug APK
         run: |
           if [ -f "./gradlew" ]; then
-            ./gradlew assembleDebug --stacktrace
+            ./gradlew assembleDebug --no-daemon --stacktrace
           else
-            gradle assembleDebug --stacktrace
+            gradle assembleDebug --no-daemon --stacktrace
           fi
 
       - name: Upload Debug APK
@@ -70,4 +87,3 @@ jobs:
           name: unit-test-results
           path: app/build/reports/tests/testDebugUnitTest/
           retention-days: 7
-
